@@ -62,7 +62,6 @@ local UIState = {
     
     -- Dados persistentes
     notes = {},
-    scripts = {},
     recentServers = {},
     calculatorMemory = 0,
     calculatorValue = ""
@@ -926,91 +925,64 @@ local function toggleESP(state)
     end
 end
 
--- ==================== TELEKILL SISTEMA INTELIGENTE ====================
+-- ==================== TELEKILL SISTEMA NOVO (FUNCIONAL) ====================
 local telekillEnabled = UIState.telekillEnabled
 local telekillConnection = nil
-local telekillCurrentTarget = nil
-local telekillOffset = 15
-local telekillCheckInterval = 2
+local telekillTargetIndex = 1
+local telekillTargets = {}
 
-local function getNearestValidTarget()
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        return nil
-    end
-    
-    local myPos = player.Character.HumanoidRootPart.Position
-    local nearestTarget = nil
-    local nearestDistance = math.huge
-    
+local function updateTelekillTargets()
+    telekillTargets = {}
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                local targetPos = plr.Character.HumanoidRootPart.Position
-                local dist = (targetPos - myPos).Magnitude
-                
-                if dist < nearestDistance then
-                    nearestDistance = dist
-                    nearestTarget = plr
-                end
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+            local humanoid = plr.Character.Humanoid
+            if humanoid.Health > 0 then
+                -- Ignorar jogadores invisíveis? (simples: verificar se tem parte visível)
+                -- Vamos considerar todos vivos, a menos que queira checar invisibilidade
+                table.insert(telekillTargets, plr)
             end
         end
     end
-    
-    return nearestTarget
+    if telekillTargetIndex > #telekillTargets then
+        telekillTargetIndex = 1
+    end
 end
 
-local function teleportToTarget(target)
-    if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
-        return false
-    end
+local function telekillToTarget(plr)
+    if not plr or not plr.Character then return false end
+    local head = plr.Character:FindFirstChild("Head")
+    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+    local targetPart = head or hrp
+    if not targetPart then return false end
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return false end
     
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        return false
-    end
-    
-    local targetHRP = target.Character.HumanoidRootPart
-    local playerHRP = player.Character.HumanoidRootPart
-    
-    local targetHead = target.Character:FindFirstChild("Head") or targetHRP
-    local teleportPos = targetHead.Position + Vector3.new(0, telekillOffset, 0)
-    
-    playerHRP.CFrame = CFrame.new(teleportPos)
-    
+    local myHRP = player.Character.HumanoidRootPart
+    myHRP.CFrame = targetPart.CFrame * CFrame.new(0, 2, 0) -- teleporta para cima da cabeça
     return true
 end
 
 local function telekillLoop()
     while telekillEnabled do
-        if telekillCurrentTarget then
-            local humanoid = telekillCurrentTarget.Character and telekillCurrentTarget.Character:FindFirstChildOfClass("Humanoid")
-            
-            if humanoid and humanoid.Health > 0 then
-                teleportToTarget(telekillCurrentTarget)
-                task.wait(telekillCheckInterval)
-            else
-                telekillCurrentTarget = getNearestValidTarget()
-                if telekillCurrentTarget then
-                    teleportToTarget(telekillCurrentTarget)
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "TELEKILL",
-                        Text = "Moving to: " .. telekillCurrentTarget.Name,
-                        Duration = 2
-                    })
-                end
-                task.wait(telekillCheckInterval)
-            end
+        if #telekillTargets == 0 then
+            updateTelekillTargets()
+            task.wait(1)
         else
-            telekillCurrentTarget = getNearestValidTarget()
-            if telekillCurrentTarget then
-                teleportToTarget(telekillCurrentTarget)
-                StarterGui:SetCore("SendNotification", {
-                    Title = "TELEKILL",
-                    Text = "Target: " .. telekillCurrentTarget.Name,
-                    Duration = 2
-                })
+            local target = telekillTargets[telekillTargetIndex]
+            if target and target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
+                telekillToTarget(target)
+                -- Avança para o próximo alvo após um pequeno intervalo
+                telekillTargetIndex = telekillTargetIndex + 1
+                if telekillTargetIndex > #telekillTargets then
+                    telekillTargetIndex = 1
+                end
+                task.wait(0.3) -- intervalo entre teleportes
+            else
+                -- Remove alvo inválido
+                table.remove(telekillTargets, telekillTargetIndex)
+                if telekillTargetIndex > #telekillTargets then
+                    telekillTargetIndex = 1
+                end
             end
-            task.wait(telekillCheckInterval)
         end
     end
 end
@@ -1025,13 +997,14 @@ local function toggleTelekill(state)
     end
     
     if state then
-        telekillCurrentTarget = getNearestValidTarget()
-        if telekillCurrentTarget then
-            teleportToTarget(telekillCurrentTarget)
-        end
-        spawn(telekillLoop)
-    else
-        telekillCurrentTarget = nil
+        updateTelekillTargets()
+        telekillTargetIndex = 1
+        telekillConnection = coroutine.wrap(telekillLoop)() -- executa em uma thread separada
+        StarterGui:SetCore("SendNotification", {
+            Title = "TELEKILL",
+            Text = "Activated - Teleporting to all players",
+            Duration = 2
+        })
     end
 end
 
@@ -1605,9 +1578,6 @@ local teleportBtn = createTabButton("TELEPORT")
 local bringBtn = createTabButton("BRING")
 local bangBtn = createTabButton("BANG")
 local calcBtn = createTabButton("🧮 CALC")
-local notesBtn = createTabButton("📝 NOTES")
-local servidoresBtn = createTabButton("🌐 SERVERS")
-local libBtn = createTabButton("📚 LIBRARY")
 local colorBtn = createTabButton("COLOR")
 
 homeBtn.BackgroundColor3 = currentColor
@@ -2226,6 +2196,45 @@ local function loadServer()
     createButton(buttonsFrame, "Reset Character", function()
         if player.Character and player.Character:FindFirstChild("Humanoid") then
             player.Character.Humanoid.Health = 0
+        end
+    end)
+    -- Novo botão Server Pequeno
+    createButton(buttonsFrame, "Server Pequeno", function()
+        local placeId = game.PlaceId
+        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?limit=100"
+        local success, response = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success then
+            local data = HttpService:JSONDecode(response)
+            local smallestServer = nil
+            local smallestPlayers = math.huge
+            for _, server in ipairs(data.data) do
+                if server.playing < smallestPlayers then
+                    smallestPlayers = server.playing
+                    smallestServer = server.id
+                end
+            end
+            if smallestServer then
+                TeleportService:TeleportToPlaceInstance(placeId, smallestServer, player)
+                StarterGui:SetCore("SendNotification", {
+                    Title = "SERVER PEQUENO",
+                    Text = "Teleportando para servidor com " .. smallestPlayers .. " jogadores",
+                    Duration = 3
+                })
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "SERVER PEQUENO",
+                    Text = "Nenhum servidor encontrado",
+                    Duration = 2
+                })
+            end
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "SERVER PEQUENO",
+                Text = "Erro ao buscar servidores",
+                Duration = 2
+            })
         end
     end)
 end
@@ -3310,7 +3319,7 @@ local function loadBang()
     updateBangList("")
 end
 
--- ==================== CALCULATOR TAB ====================
+-- ==================== CALCULATOR TAB (MELHORADA) ====================
 local function loadCalculator()
     clearContent()
     
@@ -3340,6 +3349,7 @@ local function loadCalculator()
     calcFrame.ZIndex = 13
     Instance.new("UICorner", calcFrame).CornerRadius = UDim.new(0, 12)
     
+    -- Display editável
     local display = Instance.new("TextBox")
     display.Parent = calcFrame
     display.Size = UDim2.new(0.9, 0, 0, 50)
@@ -3370,101 +3380,19 @@ local function loadCalculator()
     gridLayout.CellPadding = UDim2.new(0, 5, 0, 5)
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
     
-    local currentInput = ""
-    local currentOperator = ""
-    local firstNumber = nil
-    local secondNumber = nil
-    local result = nil
-    
-    local function updateDisplay(value)
-        display.Text = value
-    end
-    
-    local function handleNumber(num)
-        if result ~= nil then
-            currentInput = num
-            result = nil
-            firstNumber = nil
-            secondNumber = nil
+    -- Função para avaliar expressão de forma segura
+    local function evaluateExpression(expr)
+        -- Remove caracteres não permitidos (apenas números, operadores, pontos e parênteses)
+        local clean = expr:gsub("[^%d%+%-%*%/%.%(%)]", "")
+        if clean == "" then return "0" end
+        local func, err = loadstring("return " .. clean)
+        if not func then return "Erro" end
+        local success, result = pcall(func)
+        if success and type(result) == "number" then
+            return tostring(result)
         else
-            currentInput = currentInput .. num
+            return "Erro"
         end
-        updateDisplay(currentInput)
-    end
-    
-    local function handleOperator(op)
-        if currentInput ~= "" then
-            if firstNumber == nil then
-                firstNumber = tonumber(currentInput)
-                currentOperator = op
-                currentInput = ""
-            elseif currentOperator ~= "" and currentInput ~= "" then
-                secondNumber = tonumber(currentInput)
-                
-                if currentOperator == "+" then
-                    firstNumber = firstNumber + secondNumber
-                elseif currentOperator == "-" then
-                    firstNumber = firstNumber - secondNumber
-                elseif currentOperator == "×" then
-                    firstNumber = firstNumber * secondNumber
-                elseif currentOperator == "÷" then
-                    if secondNumber ~= 0 then
-                        firstNumber = firstNumber / secondNumber
-                    else
-                        updateDisplay("Error")
-                        currentInput = ""
-                        firstNumber = nil
-                        secondNumber = nil
-                        currentOperator = ""
-                        return
-                    end
-                end
-                
-                updateDisplay(tostring(firstNumber))
-                currentOperator = op
-                currentInput = ""
-            end
-        end
-    end
-    
-    local function handleEquals()
-        if firstNumber ~= nil and currentOperator ~= "" and currentInput ~= "" then
-            secondNumber = tonumber(currentInput)
-            
-            if currentOperator == "+" then
-                result = firstNumber + secondNumber
-            elseif currentOperator == "-" then
-                result = firstNumber - secondNumber
-            elseif currentOperator == "×" then
-                result = firstNumber * secondNumber
-            elseif currentOperator == "÷" then
-                if secondNumber ~= 0 then
-                    result = firstNumber / secondNumber
-                else
-                    updateDisplay("Error")
-                    currentInput = ""
-                    firstNumber = nil
-                    secondNumber = nil
-                    currentOperator = ""
-                    return
-                end
-            end
-            
-            updateDisplay(tostring(result))
-            firstNumber = result
-            secondNumber = nil
-            currentOperator = ""
-            currentInput = ""
-        end
-    end
-    
-    local function handleClear()
-        currentInput = ""
-        firstNumber = nil
-        secondNumber = nil
-        currentOperator = ""
-        result = nil
-        updateDisplay("0")
     end
     
     local numbers = {
@@ -3504,14 +3432,22 @@ local function loadCalculator()
             end)
             
             btn.MouseButton1Click:Connect(function()
-                if tonumber(btnText) or btnText == "." then
-                    handleNumber(btnText)
-                elseif btnText == "=" then
-                    handleEquals()
+                local currentText = display.Text
+                if btnText == "=" then
+                    local result = evaluateExpression(currentText)
+                    display.Text = result
                 elseif btnText == "C" then
-                    handleClear()
+                    display.Text = "0"
+                elseif btnText == "÷" then
+                    display.Text = currentText .. "/"
+                elseif btnText == "×" then
+                    display.Text = currentText .. "*"
                 else
-                    handleOperator(btnText)
+                    if currentText == "0" or currentText == "Erro" then
+                        display.Text = btnText
+                    else
+                        display.Text = currentText .. btnText
+                    end
                 end
             end)
         end
@@ -3530,681 +3466,9 @@ local function loadCalculator()
     clearBtn.ZIndex = 14
     Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 8)
     
-    clearBtn.MouseButton1Click:Connect(handleClear)
-end
-
--- ==================== NOTES TAB ====================
-local function loadNotes()
-    clearContent()
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Parent = contentFrame
-    mainFrame.Size = UDim2.new(1, 0, 1, 0)
-    mainFrame.BackgroundTransparency = 1
-    mainFrame.ZIndex = 12
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Parent = mainFrame
-    titleLabel.Size = UDim2.new(1, 0, 0, 30)
-    titleLabel.Position = UDim2.new(0, 0, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "📝 NOTES"
-    titleLabel.TextColor3 = currentColor
-    titleLabel.TextSize = 18
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.ZIndex = 13
-    
-    local notepadFrame = Instance.new("Frame")
-    notepadFrame.Parent = mainFrame
-    notepadFrame.Size = UDim2.new(1, -20, 0, 300)
-    notepadFrame.Position = UDim2.new(0, 10, 0, 40)
-    notepadFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    notepadFrame.BackgroundTransparency = 0.3
-    notepadFrame.ZIndex = 13
-    Instance.new("UICorner", notepadFrame).CornerRadius = UDim.new(0, 12)
-    
-    local textBox = Instance.new("TextBox")
-    textBox.Parent = notepadFrame
-    textBox.Size = UDim2.new(0.9, 0, 0, 200)
-    textBox.Position = UDim2.new(0.05, 0, 0, 20)
-    textBox.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    textBox.BackgroundTransparency = 0.2
-    textBox.PlaceholderText = "Type your notes here..."
-    textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-    textBox.Text = UIState.notes[player.UserId] or ""
-    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textBox.TextSize = 14
-    textBox.Font = Enum.Font.Gotham
-    textBox.TextWrapped = true
-    textBox.MultiLine = true
-    textBox.ZIndex = 14
-    Instance.new("UICorner", textBox).CornerRadius = UDim.new(0, 8)
-    
-    local buttonsFrame = Instance.new("Frame")
-    buttonsFrame.Parent = notepadFrame
-    buttonsFrame.Size = UDim2.new(0.9, 0, 0, 50)
-    buttonsFrame.Position = UDim2.new(0.05, 0, 0, 240)
-    buttonsFrame.BackgroundTransparency = 1
-    buttonsFrame.ZIndex = 14
-    
-    local buttonsLayout = Instance.new("UIListLayout")
-    buttonsLayout.Parent = buttonsFrame
-    buttonsLayout.FillDirection = Enum.FillDirection.Horizontal
-    buttonsLayout.Padding = UDim.new(0, 10)
-    buttonsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    
-    local saveBtn = Instance.new("TextButton")
-    saveBtn.Parent = buttonsFrame
-    saveBtn.Size = UDim2.new(0, 120, 0, 40)
-    saveBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-    saveBtn.BackgroundTransparency = 0.2
-    saveBtn.Text = "💾 SAVE"
-    saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    saveBtn.TextSize = 16
-    saveBtn.Font = Enum.Font.GothamBold
-    saveBtn.ZIndex = 15
-    Instance.new("UICorner", saveBtn).CornerRadius = UDim.new(0, 8)
-    
-    local clearBtn = Instance.new("TextButton")
-    clearBtn.Parent = buttonsFrame
-    clearBtn.Size = UDim2.new(0, 120, 0, 40)
-    clearBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    clearBtn.BackgroundTransparency = 0.2
-    clearBtn.Text = "🗑️ CLEAR"
-    clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearBtn.TextSize = 16
-    clearBtn.Font = Enum.Font.GothamBold
-    clearBtn.ZIndex = 15
-    Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 8)
-    
-    saveBtn.MouseButton1Click:Connect(function()
-        UIState.notes[player.UserId] = textBox.Text
-        StarterGui:SetCore("SendNotification", {
-            Title = "NOTES",
-            Text = "Notes saved!",
-            Duration = 2
-        })
-    end)
-    
     clearBtn.MouseButton1Click:Connect(function()
-        textBox.Text = ""
-        UIState.notes[player.UserId] = ""
-        StarterGui:SetCore("SendNotification", {
-            Title = "NOTES",
-            Text = "Notes cleared!",
-            Duration = 2
-        })
+        display.Text = "0"
     end)
-    
-    saveBtn.MouseEnter:Connect(function()
-        TweenService:Create(saveBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(0, 200, 0),
-            Size = UDim2.new(0, 125, 0, 45)
-        }):Play()
-    end)
-    
-    saveBtn.MouseLeave:Connect(function()
-        TweenService:Create(saveBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(0, 150, 0),
-            Size = UDim2.new(0, 120, 0, 40)
-        }):Play()
-    end)
-    
-    clearBtn.MouseEnter:Connect(function()
-        TweenService:Create(clearBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(255, 0, 0),
-            Size = UDim2.new(0, 125, 0, 45)
-        }):Play()
-    end)
-    
-    clearBtn.MouseLeave:Connect(function()
-        TweenService:Create(clearBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(200, 0, 0),
-            Size = UDim2.new(0, 120, 0, 40)
-        }):Play()
-    end)
-end
-
--- ==================== SERVERS TAB ====================
-local ServersRecentList = {}
-local ServersContainer = nil
-
-local function getGameName(placeId)
-    for _, game in ipairs(GameCards) do
-        if game.placeId == placeId then
-            return game.name
-        end
-    end
-    return "Unknown Game"
-end
-
-local function findSmallestServer()
-    StarterGui:SetCore("SendNotification", {
-        Title = "SERVER FINDER",
-        Text = "Searching for smallest server...",
-        Duration = 2
-    })
-    
-    task.wait(1)
-    
-    StarterGui:SetCore("SendNotification", {
-        Title = "SERVER FINDER",
-        Text = "Found server with 12/32 players",
-        Duration = 3
-    })
-end
-
-local function updateServersList()
-    if not ServersContainer then return end
-    
-    for _, v in pairs(ServersContainer:GetChildren()) do
-        if v:IsA("Frame") then
-            v:Destroy()
-        end
-    end
-    
-    local recentTitle = Instance.new("TextLabel")
-    recentTitle.Parent = ServersContainer
-    recentTitle.Size = UDim2.new(1, 0, 0, 30)
-    recentTitle.BackgroundTransparency = 1
-    recentTitle.Text = "Recent Servers"
-    recentTitle.TextColor3 = currentColor
-    recentTitle.TextSize = 16
-    recentTitle.Font = Enum.Font.GothamBold
-    recentTitle.TextXAlignment = Enum.TextXAlignment.Left
-    recentTitle.ZIndex = 14
-    
-    for _, server in ipairs(UIState.recentServers) do
-        local rowFrame = Instance.new("Frame")
-        rowFrame.Parent = ServersContainer
-        rowFrame.Size = UDim2.new(1, -10, 0, 40)
-        rowFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-        rowFrame.BackgroundTransparency = 0.2
-        rowFrame.ZIndex = 14
-        Instance.new("UICorner", rowFrame).CornerRadius = UDim.new(0, 6)
-        
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Parent = rowFrame
-        nameLabel.Size = UDim2.new(0.6, 0, 1, 0)
-        nameLabel.Position = UDim2.new(0, 10, 0, 0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = server.gameName
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.TextSize = 14
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.ZIndex = 15
-        
-        local rejoinBtn = Instance.new("TextButton")
-        rejoinBtn.Parent = rowFrame
-        rejoinBtn.Size = UDim2.new(0, 80, 0, 30)
-        rejoinBtn.Position = UDim2.new(1, -90, 0.5, -15)
-        rejoinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-        rejoinBtn.BackgroundTransparency = 0.2
-        rejoinBtn.Text = "Rejoin"
-        rejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        rejoinBtn.TextSize = 12
-        rejoinBtn.Font = Enum.Font.GothamBold
-        rejoinBtn.ZIndex = 15
-        Instance.new("UICorner", rejoinBtn).CornerRadius = UDim.new(0, 6)
-        
-        rejoinBtn.MouseButton1Click:Connect(function()
-            TeleportService:Teleport(server.placeId, player)
-        end)
-    end
-    
-    local clearBtn = createSmallButton(ServersContainer, "Clear History", 160, function()
-        UIState.recentServers = {}
-        updateServersList()
-        StarterGui:SetCore("SendNotification", {
-            Title = "SERVERS",
-            Text = "History cleared!",
-            Duration = 2
-        })
-    end)
-    clearBtn.Size = UDim2.new(0, 160, 0, 35)
-    clearBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    
-    local separator = Instance.new("Frame")
-    separator.Parent = ServersContainer
-    separator.Size = UDim2.new(1, 0, 0, 2)
-    separator.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    separator.BackgroundTransparency = 0.5
-    separator.ZIndex = 14
-    
-    local finderTitle = Instance.new("TextLabel")
-    finderTitle.Parent = ServersContainer
-    finderTitle.Size = UDim2.new(1, 0, 0, 30)
-    finderTitle.BackgroundTransparency = 1
-    finderTitle.Text = "Server Finder"
-    finderTitle.TextColor3 = currentColor
-    finderTitle.TextSize = 16
-    finderTitle.Font = Enum.Font.GothamBold
-    finderTitle.TextXAlignment = Enum.TextXAlignment.Left
-    finderTitle.ZIndex = 14
-    
-    local findSmallestBtn = createSmallButton(ServersContainer, "Find Smallest Server", 200, findSmallestServer)
-    findSmallestBtn.Size = UDim2.new(0, 200, 0, 35)
-    findSmallestBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    
-    local findBestBtn = createSmallButton(ServersContainer, "Find Best Server", 200, function()
-        findSmallestServer()
-    end)
-    findBestBtn.Size = UDim2.new(0, 200, 0, 35)
-    findBestBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    
-    local findNewBtn = createSmallButton(ServersContainer, "Find New Server", 200, function()
-        local servers = {142823291, 155615604, 2753915549}
-        local randomServer = servers[math.random(#servers)]
-        TeleportService:Teleport(randomServer, player)
-    end)
-    findNewBtn.Size = UDim2.new(0, 200, 0, 35)
-    findNewBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    
-    local playerSearchFrame = Instance.new("Frame")
-    playerSearchFrame.Parent = ServersContainer
-    playerSearchFrame.Size = UDim2.new(1, 0, 0, 80)
-    playerSearchFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    playerSearchFrame.BackgroundTransparency = 0.2
-    playerSearchFrame.ZIndex = 14
-    Instance.new("UICorner", playerSearchFrame).CornerRadius = UDim.new(0, 8)
-    
-    local playerSearchLabel = Instance.new("TextLabel")
-    playerSearchLabel.Parent = playerSearchFrame
-    playerSearchLabel.Size = UDim2.new(1, -20, 0, 30)
-    playerSearchLabel.Position = UDim2.new(0, 10, 0, 10)
-    playerSearchLabel.BackgroundTransparency = 1
-    playerSearchLabel.Text = "Player Name:"
-    playerSearchLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    playerSearchLabel.TextSize = 14
-    playerSearchLabel.Font = Enum.Font.Gotham
-    playerSearchLabel.TextXAlignment = Enum.TextXAlignment.Left
-    playerSearchLabel.ZIndex = 15
-    
-    local playerSearchBox = Instance.new("TextBox")
-    playerSearchBox.Parent = playerSearchFrame
-    playerSearchBox.Size = UDim2.new(0.6, 0, 0, 30)
-    playerSearchBox.Position = UDim2.new(0, 10, 0, 40)
-    playerSearchBox.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    playerSearchBox.BackgroundTransparency = 0.2
-    playerSearchBox.PlaceholderText = "Enter player name..."
-    playerSearchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-    playerSearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    playerSearchBox.TextSize = 14
-    playerSearchBox.Font = Enum.Font.Gotham
-    playerSearchBox.ZIndex = 15
-    Instance.new("UICorner", playerSearchBox).CornerRadius = UDim.new(0, 6)
-    
-    local findPlayerBtn = createSmallButton(playerSearchFrame, "Find Server", 100, function()
-        local playerName = playerSearchBox.Text
-        if playerName and playerName ~= "" then
-            StarterGui:SetCore("SendNotification", {
-                Title = "SERVER FINDER",
-                Text = "Searching for " .. playerName .. "'s server...",
-                Duration = 2
-            })
-        end
-    end)
-    findPlayerBtn.Position = UDim2.new(0, 220, 0, 40)
-    findPlayerBtn.Size = UDim2.new(0, 100, 0, 30)
-    findPlayerBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-end
-
-local function loadServers()
-    clearContent()
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Parent = contentFrame
-    mainFrame.Size = UDim2.new(1, 0, 1, 0)
-    mainFrame.BackgroundTransparency = 1
-    mainFrame.ZIndex = 12
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Parent = mainFrame
-    titleLabel.Size = UDim2.new(1, 0, 0, 30)
-    titleLabel.Position = UDim2.new(0, 0, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "🌐 SERVERS"
-    titleLabel.TextColor3 = currentColor
-    titleLabel.TextSize = 18
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.ZIndex = 13
-    
-    local listContainer = Instance.new("ScrollingFrame")
-    listContainer.Parent = mainFrame
-    listContainer.Size = UDim2.new(1, -20, 0, 330)
-    listContainer.Position = UDim2.new(0, 10, 0, 40)
-    listContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    listContainer.BackgroundTransparency = 0.3
-    listContainer.BorderSizePixel = 0
-    listContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
-    listContainer.ScrollBarThickness = 6
-    listContainer.ScrollBarImageColor3 = currentColor
-    listContainer.ScrollingDirection = Enum.ScrollingDirection.Y
-    listContainer.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
-    listContainer.ZIndex = 13
-    Instance.new("UICorner", listContainer).CornerRadius = UDim.new(0, 8)
-    
-    ServersContainer = listContainer
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Parent = listContainer
-    listLayout.Padding = UDim.new(0, 10)
-    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    
-    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
-    end)
-    
-    updateServersList()
-end
-
--- ==================== LIBRARY TAB ====================
-local LibraryScripts = UIState.scripts or {}
-local LibrarySearchText = ""
-local LibraryContainer = nil
-
-local function saveScript(name, content)
-    if not name or name == "" then return false end
-    LibraryScripts[name] = {
-        content = content,
-        favorite = false
-    }
-    UIState.scripts = LibraryScripts
-    return true
-end
-
-local function deleteScript(name)
-    LibraryScripts[name] = nil
-    UIState.scripts = LibraryScripts
-end
-
-local function toggleFavorite(name)
-    if LibraryScripts[name] then
-        LibraryScripts[name].favorite = not LibraryScripts[name].favorite
-        UIState.scripts = LibraryScripts
-    end
-end
-
-local function updateLibraryList(searchTerm)
-    searchTerm = searchTerm or LibrarySearchText
-    searchTerm = searchTerm:lower()
-    
-    if not LibraryContainer then return end
-    
-    for _, v in pairs(LibraryContainer:GetChildren()) do
-        if v:IsA("Frame") then
-            v:Destroy()
-        end
-    end
-    
-    local scripts = {}
-    for name, data in pairs(LibraryScripts) do
-        table.insert(scripts, {
-            name = name,
-            content = data.content,
-            favorite = data.favorite
-        })
-    end
-    
-    table.sort(scripts, function(a, b)
-        if a.favorite and not b.favorite then
-            return true
-        elseif not a.favorite and b.favorite then
-            return false
-        else
-            return a.name:lower() < b.name:lower()
-        end
-    end)
-    
-    if searchTerm ~= "" then
-        local filtered = {}
-        for _, script in ipairs(scripts) do
-            if script.name:lower():find(searchTerm) then
-                table.insert(filtered, script)
-            end
-        end
-        scripts = filtered
-    end
-    
-    for _, script in ipairs(scripts) do
-        local card = Instance.new("Frame")
-        card.Parent = LibraryContainer
-        card.Size = UDim2.new(1, -10, 0, 100)
-        card.BackgroundColor3 = script.favorite and Color3.fromRGB(45, 45, 60) or Color3.fromRGB(35, 35, 48)
-        card.BackgroundTransparency = 0.2
-        card.ZIndex = 14
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
-        
-        local nameBox = Instance.new("TextBox")
-        nameBox.Parent = card
-        nameBox.Size = UDim2.new(0.9, 0, 0, 25)
-        nameBox.Position = UDim2.new(0.05, 0, 0, 5)
-        nameBox.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-        nameBox.BackgroundTransparency = 0.2
-        nameBox.Text = script.name
-        nameBox.TextColor3 = script.favorite and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(255, 255, 255)
-        nameBox.TextSize = 14
-        nameBox.Font = Enum.Font.GothamBold
-        nameBox.ZIndex = 15
-        Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0, 6)
-        
-        local scriptBox = Instance.new("TextBox")
-        scriptBox.Parent = card
-        scriptBox.Size = UDim2.new(0.9, 0, 0, 30)
-        scriptBox.Position = UDim2.new(0.05, 0, 0, 35)
-        scriptBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-        scriptBox.BackgroundTransparency = 0.3
-        scriptBox.PlaceholderText = "Paste script here..."
-        scriptBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-        scriptBox.Text = script.content or ""
-        scriptBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        scriptBox.TextSize = 12
-        scriptBox.Font = Enum.Font.Gotham
-        scriptBox.TextWrapped = true
-        scriptBox.MultiLine = true
-        scriptBox.ZIndex = 15
-        Instance.new("UICorner", scriptBox).CornerRadius = UDim.new(0, 6)
-        
-        local buttonsFrame = Instance.new("Frame")
-        buttonsFrame.Parent = card
-        buttonsFrame.Size = UDim2.new(0.9, 0, 0, 30)
-        buttonsFrame.Position = UDim2.new(0.05, 0, 0, 70)
-        buttonsFrame.BackgroundTransparency = 1
-        buttonsFrame.ZIndex = 15
-        
-        local buttonsLayout = Instance.new("UIListLayout")
-        buttonsLayout.Parent = buttonsFrame
-        buttonsLayout.FillDirection = Enum.FillDirection.Horizontal
-        buttonsLayout.Padding = UDim.new(0, 5)
-        buttonsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        
-        local runBtn = createSmallButton(buttonsFrame, "▶ RUN", 60, function()
-            local scriptContent = scriptBox.Text
-            if scriptContent and scriptContent ~= "" then
-                local success, err = pcall(function()
-                    loadstring(scriptContent)()
-                end)
-                if success then
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "LIBRARY",
-                        Text = "Script executed!",
-                        Duration = 2
-                    })
-                else
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "LIBRARY",
-                        Text = "Error executing script",
-                        Duration = 2
-                    })
-                end
-            end
-        end)
-        
-        local saveBtn = createSmallButton(buttonsFrame, "💾 SAVE", 60, function()
-            local newName = nameBox.Text
-            local newContent = scriptBox.Text
-            if newName and newName ~= "" then
-                if script.name ~= newName then
-                    deleteScript(script.name)
-                end
-                saveScript(newName, newContent)
-                updateLibraryList(LibrarySearchText)
-                StarterGui:SetCore("SendNotification", {
-                    Title = "LIBRARY",
-                    Text = "Script saved!",
-                    Duration = 2
-                })
-            end
-        end)
-        
-        local favBtn = createSmallButton(buttonsFrame, "⭐", 40, function()
-            toggleFavorite(script.name)
-            updateLibraryList(LibrarySearchText)
-        end)
-        favBtn.BackgroundColor3 = script.favorite and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(80, 80, 80)
-        
-        local deleteBtn = createSmallButton(buttonsFrame, "🗑️", 40, function()
-            deleteScript(script.name)
-            updateLibraryList(LibrarySearchText)
-            StarterGui:SetCore("SendNotification", {
-                Title = "LIBRARY",
-                Text = "Script deleted!",
-                Duration = 2
-            })
-        end)
-        deleteBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    end
-    
-    local count = #scripts
-    LibraryContainer.CanvasSize = UDim2.new(0, 0, 0, math.max(170, count * 110 + 50))
-end
-
-local function loadLibrary()
-    clearContent()
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Parent = contentFrame
-    mainFrame.Size = UDim2.new(1, 0, 1, 0)
-    mainFrame.BackgroundTransparency = 1
-    mainFrame.ZIndex = 12
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Parent = mainFrame
-    titleLabel.Size = UDim2.new(1, 0, 0, 30)
-    titleLabel.Position = UDim2.new(0, 0, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "📚 SCRIPT LIBRARY"
-    titleLabel.TextColor3 = currentColor
-    titleLabel.TextSize = 18
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.ZIndex = 13
-    
-    local searchFrame = Instance.new("Frame")
-    searchFrame.Parent = mainFrame
-    searchFrame.Size = UDim2.new(1, -20, 0, 40)
-    searchFrame.Position = UDim2.new(0, 10, 0, 35)
-    searchFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    searchFrame.BackgroundTransparency = 0.2
-    searchFrame.ZIndex = 13
-    Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
-    
-    local searchIcon = Instance.new("TextLabel")
-    searchIcon.Parent = searchFrame
-    searchIcon.Size = UDim2.new(0, 40, 1, 0)
-    searchIcon.BackgroundTransparency = 1
-    searchIcon.Text = "🔍"
-    searchIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
-    searchIcon.TextSize = 20
-    searchIcon.Font = Enum.Font.Gotham
-    searchIcon.ZIndex = 14
-    
-    local searchBox = Instance.new("TextBox")
-    searchBox.Parent = searchFrame
-    searchBox.Size = UDim2.new(1, -140, 1, -10)
-    searchBox.Position = UDim2.new(0, 40, 0, 5)
-    searchBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    searchBox.BackgroundTransparency = 0.3
-    searchBox.PlaceholderText = "Search scripts..."
-    searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-    searchBox.Text = LibrarySearchText
-    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    searchBox.TextSize = 14
-    searchBox.Font = Enum.Font.Gotham
-    searchBox.ClearTextOnFocus = false
-    searchBox.ZIndex = 14
-    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
-    
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        LibrarySearchText = searchBox.Text
-        updateLibraryList(LibrarySearchText)
-    end)
-    
-    local newBtn = Instance.new("TextButton")
-    newBtn.Parent = searchFrame
-    newBtn.Size = UDim2.new(0, 80, 0, 30)
-    newBtn.Position = UDim2.new(1, -90, 0.5, -15)
-    newBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    newBtn.BackgroundTransparency = 0.2
-    newBtn.Text = "➕ NEW"
-    newBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    newBtn.TextSize = 12
-    newBtn.Font = Enum.Font.GothamBold
-    newBtn.ZIndex = 14
-    Instance.new("UICorner", newBtn).CornerRadius = UDim.new(0, 6)
-    
-    newBtn.MouseButton1Click:Connect(function()
-        local name = "Script " .. (#LibraryScripts + 1)
-        saveScript(name, "")
-        updateLibraryList(LibrarySearchText)
-    end)
-    
-    local clearBtn = Instance.new("TextButton")
-    clearBtn.Parent = searchFrame
-    clearBtn.Size = UDim2.new(0, 30, 0, 30)
-    clearBtn.Position = UDim2.new(1, -35, 0.5, -15)
-    clearBtn.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
-    clearBtn.BackgroundTransparency = 0.2
-    clearBtn.Text = "✕"
-    clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearBtn.TextSize = 16
-    clearBtn.Font = Enum.Font.GothamBold
-    clearBtn.ZIndex = 14
-    Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(1, 0)
-    
-    clearBtn.MouseButton1Click:Connect(function()
-        searchBox.Text = ""
-        LibrarySearchText = ""
-        updateLibraryList("")
-    end)
-    
-    local listContainer = Instance.new("ScrollingFrame")
-    listContainer.Parent = mainFrame
-    listContainer.Size = UDim2.new(1, -20, 0, 280)
-    listContainer.Position = UDim2.new(0, 10, 0, 85)
-    listContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    listContainer.BackgroundTransparency = 0.3
-    listContainer.BorderSizePixel = 0
-    listContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
-    listContainer.ScrollBarThickness = 6
-    listContainer.ScrollBarImageColor3 = currentColor
-    listContainer.ScrollingDirection = Enum.ScrollingDirection.Y
-    listContainer.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
-    listContainer.ZIndex = 13
-    Instance.new("UICorner", listContainer).CornerRadius = UDim.new(0, 8)
-    
-    LibraryContainer = listContainer
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Parent = listContainer
-    listLayout.Padding = UDim.new(0, 10)
-    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    
-    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
-    end)
-    
-    updateLibraryList("")
 end
 
 -- ==================== COLOR TAB ====================
@@ -4372,9 +3636,6 @@ teleportBtn.MouseButton1Click:Connect(function() activeTab = "TELEPORT"; loadTel
 bringBtn.MouseButton1Click:Connect(function() activeTab = "BRING"; loadBring() end)
 bangBtn.MouseButton1Click:Connect(function() activeTab = "BANG"; loadBang() end)
 calcBtn.MouseButton1Click:Connect(function() activeTab = "CALC"; loadCalculator() end)
-notesBtn.MouseButton1Click:Connect(function() activeTab = "NOTES"; loadNotes() end)
-servidoresBtn.MouseButton1Click:Connect(function() activeTab = "SERVERS"; loadServers() end)
-libBtn.MouseButton1Click:Connect(function() activeTab = "LIBRARY"; loadLibrary() end)
 colorBtn.MouseButton1Click:Connect(function() activeTab = "COLOR"; loadColor() end)
 
 minBtn.MouseButton1Click:Connect(function()
@@ -4466,12 +3727,6 @@ rainbowConnection = RunService.RenderStepped:Connect(function()
             bangBtn.BackgroundColor3 = currentColor
         elseif activeTab == "CALC" then
             calcBtn.BackgroundColor3 = currentColor
-        elseif activeTab == "NOTES" then
-            notesBtn.BackgroundColor3 = currentColor
-        elseif activeTab == "SERVERS" then
-            servidoresBtn.BackgroundColor3 = currentColor
-        elseif activeTab == "LIBRARY" then
-            libBtn.BackgroundColor3 = currentColor
         elseif activeTab == "COLOR" then
             colorBtn.BackgroundColor3 = currentColor
         end
