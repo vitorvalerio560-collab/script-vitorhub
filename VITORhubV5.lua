@@ -1,4 +1,4 @@
--- VITOR HUB - VERSÃO COMPLETA (CORRIGIDA 2026)
+-- VITOR HUB - VERSÃO COMPLETA (COM ESPs)
 -- Compatível com: Delta, Arceus X, Ronix, Fluxus, Solara
 
 repeat wait() until game:IsLoaded()
@@ -17,7 +17,6 @@ local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local ContextActionService = game:GetService("ContextActionService")
-local CoreGui = game:GetService("CoreGui")
 
 -- ==================== SISTEMA DE ESTADO CENTRALIZADO ====================
 local UIState = {
@@ -49,7 +48,7 @@ local UIState = {
     IgnoreList = {},
     TelekillIgnoreList = {},
     sessionStart = os.time(),
-    -- Novas ESPs
+    -- NOVAS ESPs
     espBoxEnabled = false,
     espLineEnabled = false,
     espDistanceEnabled = false,
@@ -65,8 +64,7 @@ local EspObjects = {
     distances = {},
     names = {},
     healthBars = {},
-    skeletons = {},
-    lineConnections = {}
+    skeletons = {}
 }
 
 local espBoxEnabled = false
@@ -76,7 +74,7 @@ local espNameEnabled = false
 local espHealthEnabled = false
 local espSkeletonEnabled = false
 
--- Função para criar ESP Box (com escala dinâmica)
+-- ESP Box
 local function createEspBox(plr, character)
     if not character or not espBoxEnabled then return nil end
     local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
@@ -86,15 +84,15 @@ local function createEspBox(plr, character)
     box.Size = Vector3.new(3, 5, 2)
     box.Color3 = UIState.currentColor
     box.Transparency = 0.5
-    box.ZIndex = 5
     box.AlwaysOnTop = true
+    box.ZIndex = 5
     box.Adornee = hrp
     box.Parent = hrp
     EspObjects.boxes[plr] = box
     return box
 end
 
--- Função para criar ESP Line (linha do centro da tela até o player)
+-- ESP Line
 local function createEspLine(plr, character)
     if not character or not espLineEnabled then return nil end
     local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
@@ -110,7 +108,7 @@ local function createEspLine(plr, character)
     return line
 end
 
--- Função para criar ESP Distance (BillboardGui com distância)
+-- ESP Distance
 local function createEspDistance(plr, character)
     if not character or not espDistanceEnabled then return nil end
     local head = character:FindFirstChild("Head")
@@ -121,7 +119,6 @@ local function createEspDistance(plr, character)
     billboard.StudsOffset = Vector3.new(0, 2.5, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = head
-    
     local label = Instance.new("TextLabel")
     label.Name = "DistanceLabel"
     label.Parent = billboard
@@ -130,14 +127,12 @@ local function createEspDistance(plr, character)
     label.TextColor3 = UIState.currentColor
     label.TextScaled = true
     label.Font = Enum.Font.GothamBold
-    label.TextStrokeTransparency = 0.5
     label.Text = "0m"
-    
     EspObjects.distances[plr] = billboard
     return billboard
 end
 
--- Função para criar ESP Name
+-- ESP Name
 local function createEspName(plr, character)
     if not character or not espNameEnabled then return nil end
     local head = character:FindFirstChild("Head")
@@ -148,7 +143,6 @@ local function createEspName(plr, character)
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = head
-    
     local label = Instance.new("TextLabel")
     label.Name = "NameLabel"
     label.Parent = billboard
@@ -157,14 +151,12 @@ local function createEspName(plr, character)
     label.TextColor3 = UIState.currentColor
     label.TextScaled = true
     label.Font = Enum.Font.GothamBold
-    label.TextStrokeTransparency = 0.5
     label.Text = plr.Name
-    
     EspObjects.names[plr] = billboard
     return billboard
 end
 
--- Função para criar ESP Health Bar
+-- ESP Health Bar
 local function createEspHealth(plr, character)
     if not character or not espHealthEnabled then return nil end
     local head = character:FindFirstChild("Head")
@@ -175,120 +167,53 @@ local function createEspHealth(plr, character)
     billboard.StudsOffset = Vector3.new(0, -1.5, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = head
-    
     local frame = Instance.new("Frame")
     frame.Name = "HealthFrame"
     frame.Parent = billboard
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     frame.BorderSizePixel = 0
-    
     local fill = Instance.new("Frame")
     fill.Name = "HealthFill"
     fill.Parent = frame
     fill.Size = UDim2.new(1, 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     fill.BorderSizePixel = 0
-    
     EspObjects.healthBars[plr] = billboard
     return billboard
 end
 
--- Função para criar ESP Skeleton (Stickman)
+-- ESP Skeleton
 local function createEspSkeleton(plr, character)
     if not character or not espSkeletonEnabled then return nil end
     local skeleton = Instance.new("Model")
     skeleton.Name = "EspSkeleton_" .. plr.UserId
     skeleton.Parent = character
-    
     local parts = {
-        {name = "Head", size = Vector3.new(1, 1, 1), pos = Vector3.new(0, 5, 0), color = UIState.currentColor},
-        {name = "Torso", size = Vector3.new(2, 3, 1), pos = Vector3.new(0, 2.5, 0), color = UIState.currentColor},
-        {name = "LeftArm", size = Vector3.new(1, 2, 1), pos = Vector3.new(-1.5, 3.5, 0), color = UIState.currentColor},
-        {name = "RightArm", size = Vector3.new(1, 2, 1), pos = Vector3.new(1.5, 3.5, 0), color = UIState.currentColor},
-        {name = "LeftLeg", size = Vector3.new(1, 2, 1), pos = Vector3.new(-1, 1, 0), color = UIState.currentColor},
-        {name = "RightLeg", size = Vector3.new(1, 2, 1), pos = Vector3.new(1, 1, 0), color = UIState.currentColor}
+        {name = "Head", size = Vector3.new(1, 1, 1), offset = Vector3.new(0, 3.5, 0)},
+        {name = "Torso", size = Vector3.new(2, 3, 1), offset = Vector3.new(0, 1.5, 0)},
+        {name = "LeftArm", size = Vector3.new(1, 2, 1), offset = Vector3.new(-1.5, 2.5, 0)},
+        {name = "RightArm", size = Vector3.new(1, 2, 1), offset = Vector3.new(1.5, 2.5, 0)},
+        {name = "LeftLeg", size = Vector3.new(1, 2, 1), offset = Vector3.new(-1, 0, 0)},
+        {name = "RightLeg", size = Vector3.new(1, 2, 1), offset = Vector3.new(1, 0, 0)}
     }
-    
     for _, partInfo in ipairs(parts) do
         local part = Instance.new("Part")
         part.Name = partInfo.name
         part.Size = partInfo.size
-        part.CFrame = character:GetPivot() * CFrame.new(partInfo.pos)
-        part.Color = partInfo.color
+        part.Color = UIState.currentColor
         part.Material = Enum.Material.Neon
         part.Anchored = true
         part.CanCollide = false
         part.Transparency = 0.3
         part.Parent = skeleton
-        
-        local attachment = Instance.new("Attachment")
-        attachment.Name = "Attachment_" .. partInfo.name
-        attachment.Parent = part
     end
-    
     EspObjects.skeletons[plr] = skeleton
     return skeleton
 end
 
--- Atualizar ESP Skeleton (seguir o personagem)
-local function updateSkeleton(skeleton, character)
-    if not skeleton or not character then return end
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local rootCF = hrp.CFrame
-    
-    local parts = {
-        Head = {offset = Vector3.new(0, 3.5, 0), size = Vector3.new(1, 1, 1)},
-        Torso = {offset = Vector3.new(0, 1.5, 0), size = Vector3.new(2, 3, 1)},
-        LeftArm = {offset = Vector3.new(-1.5, 2.5, 0), size = Vector3.new(1, 2, 1)},
-        RightArm = {offset = Vector3.new(1.5, 2.5, 0), size = Vector3.new(1, 2, 1)},
-        LeftLeg = {offset = Vector3.new(-1, 0, 0), size = Vector3.new(1, 2, 1)},
-        RightLeg = {offset = Vector3.new(1, 0, 0), size = Vector3.new(1, 2, 1)}
-    }
-    
-    for name, data in pairs(parts) do
-        local part = skeleton:FindFirstChild(name)
-        if part then
-            part.CFrame = rootCF * CFrame.new(data.offset)
-            part.Size = data.size
-        end
-    end
-end
-
--- Atualizar ESP Distance (calcular distância)
-local function updateDistance(billboard, plr)
-    if not billboard or not plr.Character then return end
-    local label = billboard:FindFirstChild("DistanceLabel")
-    if not label then return end
-    local myChar = player.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local targetHRP = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("Head")
-    if myHRP and targetHRP then
-        local dist = (myHRP.Position - targetHRP.Position).Magnitude
-        label.Text = math.floor(dist) .. "m"
-    else
-        label.Text = "0m"
-    end
-end
-
--- Atualizar ESP Health Bar
-local function updateHealth(billboard, plr)
-    if not billboard or not plr.Character then return end
-    local fill = billboard:FindFirstChild("HealthFrame") and billboard.HealthFrame:FindFirstChild("HealthFill")
-    if not fill then return end
-    local humanoid = plr.Character:FindFirstChild("Humanoid")
-    if humanoid then
-        local healthPercent = humanoid.Health / humanoid.MaxHealth
-        fill.Size = UDim2.new(healthPercent, 0, 1, 0)
-        fill.BackgroundColor3 = healthPercent > 0.5 and Color3.fromRGB(0, 255, 0) or (healthPercent > 0.2 and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 0, 0))
-    else
-        fill.Size = UDim2.new(0, 0, 1, 0)
-    end
-end
-
--- Atualizar ESP Box (escala dinâmica)
-local function updateBox(box, plr)
+-- Atualizações
+local function updateEspBox(box, plr)
     if not box or not plr.Character then return end
     local hrp = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("Head")
     if hrp then
@@ -303,16 +228,62 @@ local function updateBox(box, plr)
     end
 end
 
--- Atualizar ESP Line (linha da tela até o player)
-local function updateLine(line, plr)
+local function updateEspLine(line, plr)
     if not line or not plr.Character then return end
     local hrp = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("Head")
-    if hrp then
-        line.Adornee = hrp
+    if hrp then line.Adornee = hrp end
+end
+
+local function updateEspDistance(billboard, plr)
+    if not billboard or not plr.Character then return end
+    local label = billboard:FindFirstChild("DistanceLabel")
+    if not label then return end
+    local myChar = player.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local targetHRP = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("Head")
+    if myHRP and targetHRP then
+        local dist = (myHRP.Position - targetHRP.Position).Magnitude
+        label.Text = math.floor(dist) .. "m"
     end
 end
 
--- Remover todas as ESPs de um jogador
+local function updateEspHealth(billboard, plr)
+    if not billboard or not plr.Character then return end
+    local fill = billboard:FindFirstChild("HealthFrame") and billboard.HealthFrame:FindFirstChild("HealthFill")
+    if not fill then return end
+    local humanoid = plr.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        fill.Size = UDim2.new(healthPercent, 0, 1, 0)
+        if healthPercent > 0.5 then
+            fill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        elseif healthPercent > 0.2 then
+            fill.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+        else
+            fill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        end
+    end
+end
+
+local function updateEspSkeleton(skeleton, character)
+    if not skeleton or not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local rootCF = hrp.CFrame
+    local offsets = {
+        Head = Vector3.new(0, 3.5, 0),
+        Torso = Vector3.new(0, 1.5, 0),
+        LeftArm = Vector3.new(-1.5, 2.5, 0),
+        RightArm = Vector3.new(1.5, 2.5, 0),
+        LeftLeg = Vector3.new(-1, 0, 0),
+        RightLeg = Vector3.new(1, 0, 0)
+    }
+    for name, offset in pairs(offsets) do
+        local part = skeleton:FindFirstChild(name)
+        if part then part.CFrame = rootCF * CFrame.new(offset) end
+    end
+end
+
 local function removeEspFromPlayer(plr)
     if EspObjects.boxes[plr] then pcall(function() EspObjects.boxes[plr]:Destroy() end); EspObjects.boxes[plr] = nil end
     if EspObjects.lines[plr] then pcall(function() EspObjects.lines[plr]:Destroy() end); EspObjects.lines[plr] = nil end
@@ -322,7 +293,6 @@ local function removeEspFromPlayer(plr)
     if EspObjects.skeletons[plr] then pcall(function() EspObjects.skeletons[plr]:Destroy() end); EspObjects.skeletons[plr] = nil end
 end
 
--- Adicionar ESPs para um jogador
 local function addEspToPlayer(plr)
     if plr == player then return end
     local function applyEsp()
@@ -339,246 +309,157 @@ local function addEspToPlayer(plr)
     plr.CharacterAdded:Connect(applyEsp)
 end
 
--- Alternar ESP Box
+-- Toggles das ESPs
 local function toggleEspBox(state)
     espBoxEnabled = state
     UIState.espBoxEnabled = state
     if state then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                createEspBox(plr, plr.Character)
-            end
+            if plr ~= player and plr.Character then createEspBox(plr, plr.Character) end
         end
         Players.PlayerAdded:Connect(function(plr)
             if plr ~= player then
-                plr.CharacterAdded:Connect(function(char)
-                    if espBoxEnabled then createEspBox(plr, char) end
-                end)
+                plr.CharacterAdded:Connect(function(char) if espBoxEnabled then createEspBox(plr, char) end end)
                 if espBoxEnabled and plr.Character then createEspBox(plr, plr.Character) end
             end
         end)
     else
-        for plr, box in pairs(EspObjects.boxes) do
-            pcall(function() box:Destroy() end)
-        end
+        for plr, box in pairs(EspObjects.boxes) do pcall(function() box:Destroy() end) end
         EspObjects.boxes = {}
     end
+    StarterGui:SetCore("SendNotification", { Title = "ESP Box", Text = state and "Ativado" or "Desativado", Duration = 1 })
 end
 
--- Alternar ESP Line
 local function toggleEspLine(state)
     espLineEnabled = state
     UIState.espLineEnabled = state
     if state then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                createEspLine(plr, plr.Character)
-            end
+            if plr ~= player and plr.Character then createEspLine(plr, plr.Character) end
         end
         Players.PlayerAdded:Connect(function(plr)
             if plr ~= player then
-                plr.CharacterAdded:Connect(function(char)
-                    if espLineEnabled then createEspLine(plr, char) end
-                end)
+                plr.CharacterAdded:Connect(function(char) if espLineEnabled then createEspLine(plr, char) end end)
                 if espLineEnabled and plr.Character then createEspLine(plr, plr.Character) end
             end
         end)
     else
-        for plr, line in pairs(EspObjects.lines) do
-            pcall(function() line:Destroy() end)
-        end
+        for plr, line in pairs(EspObjects.lines) do pcall(function() line:Destroy() end) end
         EspObjects.lines = {}
     end
+    StarterGui:SetCore("SendNotification", { Title = "ESP Line", Text = state and "Ativado" or "Desativado", Duration = 1 })
 end
 
--- Alternar ESP Distance
 local function toggleEspDistance(state)
     espDistanceEnabled = state
     UIState.espDistanceEnabled = state
     if state then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                createEspDistance(plr, plr.Character)
-            end
+            if plr ~= player and plr.Character then createEspDistance(plr, plr.Character) end
         end
         Players.PlayerAdded:Connect(function(plr)
             if plr ~= player then
-                plr.CharacterAdded:Connect(function(char)
-                    if espDistanceEnabled then createEspDistance(plr, char) end
-                end)
+                plr.CharacterAdded:Connect(function(char) if espDistanceEnabled then createEspDistance(plr, char) end end)
                 if espDistanceEnabled and plr.Character then createEspDistance(plr, plr.Character) end
             end
         end)
     else
-        for plr, dist in pairs(EspObjects.distances) do
-            pcall(function() dist:Destroy() end)
-        end
+        for plr, dist in pairs(EspObjects.distances) do pcall(function() dist:Destroy() end) end
         EspObjects.distances = {}
     end
+    StarterGui:SetCore("SendNotification", { Title = "ESP Distance", Text = state and "Ativado" or "Desativado", Duration = 1 })
 end
 
--- Alternar ESP Name
 local function toggleEspName(state)
     espNameEnabled = state
     UIState.espNameEnabled = state
     if state then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                createEspName(plr, plr.Character)
-            end
+            if plr ~= player and plr.Character then createEspName(plr, plr.Character) end
         end
         Players.PlayerAdded:Connect(function(plr)
             if plr ~= player then
-                plr.CharacterAdded:Connect(function(char)
-                    if espNameEnabled then createEspName(plr, char) end
-                end)
+                plr.CharacterAdded:Connect(function(char) if espNameEnabled then createEspName(plr, char) end end)
                 if espNameEnabled and plr.Character then createEspName(plr, plr.Character) end
             end
         end)
     else
-        for plr, name in pairs(EspObjects.names) do
-            pcall(function() name:Destroy() end)
-        end
+        for plr, name in pairs(EspObjects.names) do pcall(function() name:Destroy() end) end
         EspObjects.names = {}
     end
+    StarterGui:SetCore("SendNotification", { Title = "ESP Name", Text = state and "Ativado" or "Desativado", Duration = 1 })
 end
 
--- Alternar ESP Health
 local function toggleEspHealth(state)
     espHealthEnabled = state
     UIState.espHealthEnabled = state
     if state then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                createEspHealth(plr, plr.Character)
-            end
+            if plr ~= player and plr.Character then createEspHealth(plr, plr.Character) end
         end
         Players.PlayerAdded:Connect(function(plr)
             if plr ~= player then
-                plr.CharacterAdded:Connect(function(char)
-                    if espHealthEnabled then createEspHealth(plr, char) end
-                end)
+                plr.CharacterAdded:Connect(function(char) if espHealthEnabled then createEspHealth(plr, char) end end)
                 if espHealthEnabled and plr.Character then createEspHealth(plr, plr.Character) end
             end
         end)
     else
-        for plr, health in pairs(EspObjects.healthBars) do
-            pcall(function() health:Destroy() end)
-        end
+        for plr, health in pairs(EspObjects.healthBars) do pcall(function() health:Destroy() end) end
         EspObjects.healthBars = {}
     end
+    StarterGui:SetCore("SendNotification", { Title = "ESP Health", Text = state and "Ativado" or "Desativado", Duration = 1 })
 end
 
--- Alternar ESP Skeleton
 local function toggleEspSkeleton(state)
     espSkeletonEnabled = state
     UIState.espSkeletonEnabled = state
     if state then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                createEspSkeleton(plr, plr.Character)
-            end
+            if plr ~= player and plr.Character then createEspSkeleton(plr, plr.Character) end
         end
         Players.PlayerAdded:Connect(function(plr)
             if plr ~= player then
-                plr.CharacterAdded:Connect(function(char)
-                    if espSkeletonEnabled then createEspSkeleton(plr, char) end
-                end)
+                plr.CharacterAdded:Connect(function(char) if espSkeletonEnabled then createEspSkeleton(plr, char) end end)
                 if espSkeletonEnabled and plr.Character then createEspSkeleton(plr, plr.Character) end
             end
         end)
     else
-        for plr, skel in pairs(EspObjects.skeletons) do
-            pcall(function() skel:Destroy() end)
-        end
+        for plr, skel in pairs(EspObjects.skeletons) do pcall(function() skel:Destroy() end) end
         EspObjects.skeletons = {}
     end
+    StarterGui:SetCore("SendNotification", { Title = "ESP Skeleton", Text = state and "Ativado" or "Desativado", Duration = 1 })
 end
 
--- Loop de atualização das ESPs
+-- Loop de atualização
 RunService.RenderStepped:Connect(function()
     if espBoxEnabled then
         for plr, box in pairs(EspObjects.boxes) do
-            if plr.Character then
-                updateBox(box, plr)
-            end
+            if plr.Character then updateEspBox(box, plr) end
         end
     end
     if espLineEnabled then
         for plr, line in pairs(EspObjects.lines) do
-            if plr.Character then
-                updateLine(line, plr)
-            end
+            if plr.Character then updateEspLine(line, plr) end
         end
     end
     if espDistanceEnabled then
         for plr, dist in pairs(EspObjects.distances) do
-            if plr.Character then
-                updateDistance(dist, plr)
-            end
+            if plr.Character then updateEspDistance(dist, plr) end
         end
     end
     if espHealthEnabled then
         for plr, health in pairs(EspObjects.healthBars) do
-            if plr.Character then
-                updateHealth(health, plr)
-            end
+            if plr.Character then updateEspHealth(health, plr) end
         end
     end
     if espSkeletonEnabled then
         for plr, skel in pairs(EspObjects.skeletons) do
-            if plr.Character then
-                updateSkeleton(skel, plr.Character)
-            end
+            if plr.Character then updateEspSkeleton(skel, plr.Character) end
         end
     end
 end)
 
--- Limpar ESPs quando jogador sai
-Players.PlayerRemoving:Connect(function(plr)
-    removeEspFromPlayer(plr)
-end)
-
--- ==================== SISTEMA DE ESPECTADOR ====================
-local spectatorEnabled = false
-local spectatorCamera = nil
-local spectatorTarget = nil
-
-local function startSpectator(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then return end
-    spectatorTarget = targetPlayer
-    spectatorEnabled = true
-    spectatorCamera = Instance.new("Camera")
-    spectatorCamera.CameraType = Enum.CameraType.Scriptable
-    spectatorCamera.Parent = player.PlayerGui
-    Camera.CameraType = Enum.CameraType.Scriptable
-    Camera.CameraSubject = spectatorCamera
-    
-    local function updateSpectator()
-        if not spectatorEnabled or not spectatorTarget or not spectatorTarget.Character then
-            stopSpectator()
-            return
-        end
-        local head = spectatorTarget.Character:FindFirstChild("Head")
-        if head then
-            spectatorCamera.CFrame = head.CFrame + head.CFrame.LookVector * 2 + Vector3.new(0, 0.5, 0)
-        end
-    end
-    
-    local conn = RunService.RenderStepped:Connect(updateSpectator)
-    EspObjects.lineConnections[targetPlayer] = conn
-end
-
-local function stopSpectator()
-    spectatorEnabled = false
-    spectatorTarget = nil
-    if spectatorCamera then spectatorCamera:Destroy(); spectatorCamera = nil end
-    Camera.CameraType = Enum.CameraType.Custom
-    for plr, conn in pairs(EspObjects.lineConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    EspObjects.lineConnections = {}
-end
+Players.PlayerRemoving:Connect(function(plr) removeEspFromPlayer(plr) end)
 
 -- ==================== GERENCIADOR DE CONEXÕES ====================
 local ActiveConnections = {}
@@ -736,74 +617,66 @@ end
 
 -- ==================== FUNÇÃO FLOAT ====================
 local function executeFloat()
-    --// SERVICES
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-
-    local plr = Players.LocalPlayer
-
-    --// VARIAVEIS
+    local plr = game.Players.LocalPlayer
     local floatEnabled = false
     local upHold = false
     local downHold = false
     local floatSpeed = 35
-
     local character, root, humanoid
     local floors = {}
     local bodyVel = nil
 
-    --// PEGAR CHAR
     local function setupChar()
         character = plr.Character or plr.CharacterAdded:Wait()
         root = character:WaitForChild("HumanoidRootPart")
         humanoid = character:WaitForChild("Humanoid")
     end
-
     setupChar()
+    plr.CharacterAdded:Connect(function() task.wait(0.5); setupChar() end)
 
-    plr.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        setupChar()
-    end)
-
-    --// GUI
     local gui = Instance.new("ScreenGui")
     gui.Name = "FloatGui"
     gui.ResetOnSpawn = false
-    gui.Parent = game.CoreGui
+    gui.Parent = plr:WaitForChild("PlayerGui")
 
     local frame = Instance.new("Frame", gui)
     frame.Size = UDim2.new(0,120,0,180)
     frame.Position = UDim2.new(0,20,0.4,0)
-    frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    frame.BackgroundColor3 = Color3.fromRGB(20,20,30)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
     local exit = Instance.new("TextButton", frame)
     exit.Size = UDim2.new(1,0,0,30)
     exit.Text = "Exit"
+    exit.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    Instance.new("UICorner", exit).CornerRadius = UDim.new(0, 4)
 
     local toggle = Instance.new("TextButton", frame)
     toggle.Position = UDim2.new(0,0,0,35)
     toggle.Size = UDim2.new(1,0,0,40)
     toggle.Text = "OFF"
+    toggle.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 4)
 
     local up = Instance.new("TextButton", frame)
     up.Position = UDim2.new(0,0,0,80)
     up.Size = UDim2.new(1,0,0,40)
     up.Text = "↑"
+    up.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    Instance.new("UICorner", up).CornerRadius = UDim.new(0, 4)
 
     local down = Instance.new("TextButton", frame)
     down.Position = UDim2.new(0,0,0,125)
     down.Size = UDim2.new(1,0,0,40)
     down.Text = "↓"
+    down.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    Instance.new("UICorner", down).CornerRadius = UDim.new(0, 4)
 
-    -- BOTÕES
     up.MouseButton1Down:Connect(function() upHold = true end)
     up.MouseButton1Up:Connect(function() upHold = false end)
-
     down.MouseButton1Down:Connect(function() downHold = true end)
     down.MouseButton1Up:Connect(function() downHold = false end)
 
-    -- CRIAR CHÃO
     local function createFloor()
         local p = Instance.new("Part")
         p.Size = Vector3.new(500,1,500)
@@ -812,11 +685,9 @@ local function executeFloat()
         p.Transparency = 1
         p.CanCollide = true
         p.Parent = workspace
-
         table.insert(floors, p)
     end
 
-    -- REMOVER TODOS
     local function removeAllFloors()
         for _,p in ipairs(floors) do
             if p then p:Destroy() end
@@ -824,7 +695,6 @@ local function executeFloat()
         floors = {}
     end
 
-    -- NOCLIP ESTÁVEL
     RunService.Stepped:Connect(function()
         if floatEnabled and character then
             for _,v in ipairs(character:GetDescendants()) do
@@ -835,7 +705,6 @@ local function executeFloat()
         end
     end)
 
-    -- RESTORE COLLISION
     local function restoreCollision()
         if character then
             for _,v in ipairs(character:GetDescendants()) do
@@ -846,114 +715,83 @@ local function executeFloat()
         end
     end
 
-    -- EXIT (MATA TUDO)
     exit.MouseButton1Click:Connect(function()
         floatEnabled = false
-
         removeAllFloors()
-
-        if bodyVel then
-            bodyVel:Destroy()
-            bodyVel = nil
-        end
-
+        if bodyVel then bodyVel:Destroy() end
         restoreCollision()
         gui:Destroy()
     end)
 
-    -- TOGGLE
     toggle.MouseButton1Click:Connect(function()
         floatEnabled = not floatEnabled
         toggle.Text = floatEnabled and "ON" or "OFF"
-
+        toggle.BackgroundColor3 = floatEnabled and Color3.fromRGB(0,200,0) or Color3.fromRGB(50,50,70)
         if floatEnabled then
             humanoid.WalkSpeed = 35
-
             bodyVel = Instance.new("BodyVelocity")
             bodyVel.MaxForce = Vector3.new(0, math.huge, 0)
-            bodyVel.Velocity = Vector3.new(0,0,0)
             bodyVel.Parent = root
-
         else
-            -- DESATIVAR TOTAL
             removeAllFloors()
-
-            if bodyVel then
-                bodyVel:Destroy()
-                bodyVel = nil
-            end
-
+            if bodyVel then bodyVel:Destroy() end
             restoreCollision()
-
             humanoid.WalkSpeed = 16
         end
     end)
 
-    -- LOOP
     RunService.RenderStepped:Connect(function()
         if not root or not humanoid then return end
-
         if floatEnabled and bodyVel then
-
             if upHold then
                 bodyVel.Velocity = Vector3.new(0, floatSpeed, 0)
-
             elseif downHold then
                 bodyVel.Velocity = Vector3.new(0, -floatSpeed, 0)
-
             else
-                bodyVel.Velocity = Vector3.new(0, 0, 0)
-
-                -- cria chão só quando parar
+                bodyVel.Velocity = Vector3.new(0,0,0)
                 if not floors[#floors] or (root.Position - floors[#floors].Position).Magnitude > 5 then
                     createFloor()
                 end
             end
-
         end
     end)
+    StarterGui:SetCore("SendNotification", { Title = "Float", Text = "Ativado! Use os botões ↑ e ↓", Duration = 3 })
 end
 
 -- ==================== FUNÇÃO NO CLIP CAMERA ====================
 local function executeNoClipCamera()
-    -- SERVICES
-    local Players = game:GetService("Players")
-
-    local player = Players.LocalPlayer
-
-    -- GUI
     local gui = Instance.new("ScreenGui")
-    gui.Parent = player.PlayerGui
+    gui.Name = "NoClipCameraGUI"
     gui.ResetOnSpawn = false
+    gui.Parent = player:WaitForChild("PlayerGui")
 
     local frame = Instance.new("Frame", gui)
     frame.Size = UDim2.new(0,180,0,80)
     frame.Position = UDim2.new(0.05,0,0.3,0)
-    frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    frame.BackgroundColor3 = Color3.fromRGB(20,20,30)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
     local title = Instance.new("TextLabel", frame)
     title.Size = UDim2.new(1,0,0,30)
     title.Text = "No Clip Camera"
     title.BackgroundTransparency = 1
-    title.TextColor3 = Color3.new(1,1,1)
+    title.TextColor3 = Color3.fromRGB(0,200,255)
+    title.Font = Enum.Font.GothamBold
 
     local exit = Instance.new("TextButton", frame)
     exit.Size = UDim2.new(1,-20,0,35)
     exit.Position = UDim2.new(0,10,0.45,0)
     exit.Text = "EXIT"
     exit.BackgroundColor3 = Color3.fromRGB(150,0,0)
+    Instance.new("UICorner", exit).CornerRadius = UDim.new(0, 6)
 
-    -- DESATIVA COLISÃO DA CAMERA
     player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
 
-    -- EXIT
     exit.MouseButton1Click:Connect(function()
-
         player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
-
         gui:Destroy()
-
     end)
+    StarterGui:SetCore("SendNotification", { Title = "No Clip Camera", Text = "Ativado!", Duration = 2 })
 end
 
 -- ==================== FREE CAM ====================
@@ -1450,7 +1288,7 @@ local function toggleAimbot(state)
     end
 end
 
--- ==================== ESP ANTIGO ====================
+-- ==================== ESP ====================
 local espConnections = {}
 local espHighlights = {}
 local espNameTags = {}
@@ -2144,7 +1982,6 @@ local bangBtn = createTabButton("Bang")
 local calcBtn = createTabButton("Calc")
 local colorBtn = createTabButton("Color")
 local adminsBtn = createTabButton("Admins")
-local spectatorBtn = createTabButton("Espectador") -- Nova aba
 
 homeBtn.BackgroundColor3 = currentColor
 homeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -3134,202 +2971,13 @@ local function loadAimbot()
     createToggle(togglesFrame, "ESP (Highlight)", UIState.espEnabled, toggleESP)
     createToggle(togglesFrame, "Telekill", UIState.telekillEnabled, toggleTelekill)
     
-    -- Novas ESPs
+    -- NOVAS ESPs
     createToggle(togglesFrame, "ESP Box", UIState.espBoxEnabled, toggleEspBox)
     createToggle(togglesFrame, "ESP Line", UIState.espLineEnabled, toggleEspLine)
     createToggle(togglesFrame, "ESP Distance", UIState.espDistanceEnabled, toggleEspDistance)
     createToggle(togglesFrame, "ESP Name", UIState.espNameEnabled, toggleEspName)
     createToggle(togglesFrame, "ESP Health", UIState.espHealthEnabled, toggleEspHealth)
     createToggle(togglesFrame, "ESP Skeleton", UIState.espSkeletonEnabled, toggleEspSkeleton)
-end
-
--- ==================== ESPECTADOR TAB ====================
-local SpectatorSearchText = ""
-local SpectatorContainer = nil
-
-local function updateSpectatorList(searchTerm)
-    searchTerm = searchTerm or SpectatorSearchText
-    searchTerm = searchTerm:lower()
-    
-    if not SpectatorContainer then return end
-    
-    for _, v in pairs(SpectatorContainer:GetChildren()) do
-        if v:IsA("Frame") then v:Destroy() end
-    end
-    
-    updatePlayerCache()
-    local allPlayers = Players:GetPlayers()
-    local playerList = {}
-    for _, plr in pairs(allPlayers) do
-        table.insert(playerList, plr)
-    end
-    table.sort(playerList, function(a, b) return a.Name:lower() < b.Name:lower() end)
-    
-    if searchTerm ~= "" then
-        local filtered = {}
-        for _, plr in pairs(playerList) do
-            if plr.Name:lower():find(searchTerm) or (plr.DisplayName and plr.DisplayName:lower():find(searchTerm)) then
-                table.insert(filtered, plr)
-            end
-        end
-        playerList = filtered
-    end
-    
-    for _, plr in pairs(playerList) do
-        local isViewing = (spectatorTarget == plr)
-        
-        local rowFrame = Instance.new("Frame")
-        rowFrame.Parent = SpectatorContainer
-        rowFrame.Size = UDim2.new(1, -10, 0, 60)
-        rowFrame.BackgroundColor3 = isViewing and currentColor or Color3.fromRGB(35, 35, 48)
-        rowFrame.BackgroundTransparency = isViewing and 0.3 or 0.2
-        Instance.new("UICorner", rowFrame).CornerRadius = UDim.new(0, 8)
-        
-        local avatarFrame = Instance.new("Frame")
-        avatarFrame.Parent = rowFrame
-        avatarFrame.Size = UDim2.new(0, 50, 0, 50)
-        avatarFrame.Position = UDim2.new(0, 5, 0.5, -25)
-        avatarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        avatarFrame.BackgroundTransparency = 0.9
-        Instance.new("UICorner", avatarFrame).CornerRadius = UDim.new(1, 0)
-        
-        local avatarImg = Instance.new("ImageLabel")
-        avatarImg.Parent = avatarFrame
-        avatarImg.Size = UDim2.new(1, -4, 1, -4)
-        avatarImg.Position = UDim2.new(0, 2, 0, 2)
-        avatarImg.BackgroundTransparency = 1
-        avatarImg.Image = getPlayerThumbnail(plr.UserId)
-        Instance.new("UICorner", avatarImg).CornerRadius = UDim.new(1, 0)
-        
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Parent = rowFrame
-        nameLabel.Size = UDim2.new(0, 200, 0, 30)
-        nameLabel.Position = UDim2.new(0, 60, 0.3, -15)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = plr.Name .. (plr == player and " (Você)" or "")
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.TextSize = 16
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        
-        local viewBtn = Instance.new("TextButton")
-        viewBtn.Parent = rowFrame
-        viewBtn.Size = UDim2.new(0, 100, 0, 35)
-        viewBtn.Position = UDim2.new(1, -110, 0.5, -17)
-        viewBtn.BackgroundColor3 = isViewing and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(0, 150, 255)
-        viewBtn.BackgroundTransparency = 0.2
-        viewBtn.Text = isViewing and "Unview" or "View"
-        viewBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        viewBtn.TextSize = 12
-        viewBtn.Font = Enum.Font.GothamBold
-        Instance.new("UICorner", viewBtn).CornerRadius = UDim.new(0, 6)
-        
-        viewBtn.MouseButton1Click:Connect(function()
-            if spectatorTarget == plr then
-                stopSpectator()
-                updateSpectatorList(SpectatorSearchText)
-                StarterGui:SetCore("SendNotification", { Title = "Espectador", Text = "Você parou de espectar " .. plr.Name, Duration = 2 })
-            else
-                stopSpectator()
-                startSpectator(plr)
-                updateSpectatorList(SpectatorSearchText)
-                StarterGui:SetCore("SendNotification", { Title = "Espectador", Text = "Espectando: " .. plr.Name, Duration = 2 })
-            end
-        end)
-    end
-    
-    SpectatorContainer.CanvasSize = UDim2.new(0, 0, 0, math.max(170, #playerList * 65))
-end
-
-local function loadSpectator()
-    clearContent()
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Parent = contentFrame
-    mainFrame.Size = UDim2.new(1, 0, 1, 0)
-    mainFrame.BackgroundTransparency = 1
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Parent = mainFrame
-    titleLabel.Size = UDim2.new(1, 0, 0, 30)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "Espectador"
-    titleLabel.TextColor3 = currentColor
-    titleLabel.TextSize = 18
-    titleLabel.Font = Enum.Font.GothamBold
-    
-    local searchFrame = Instance.new("Frame")
-    searchFrame.Parent = mainFrame
-    searchFrame.Size = UDim2.new(1, -20, 0, 40)
-    searchFrame.Position = UDim2.new(0, 10, 0, 35)
-    searchFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    searchFrame.BackgroundTransparency = 0.2
-    Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
-    
-    local searchBox = Instance.new("TextBox")
-    searchBox.Parent = searchFrame
-    searchBox.Size = UDim2.new(1, -50, 1, -10)
-    searchBox.Position = UDim2.new(0, 10, 0, 5)
-    searchBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    searchBox.BackgroundTransparency = 0.3
-    searchBox.PlaceholderText = "Search players..."
-    searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-    searchBox.Text = SpectatorSearchText
-    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    searchBox.TextSize = 14
-    searchBox.Font = Enum.Font.Gotham
-    searchBox.ClearTextOnFocus = false
-    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
-    
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        SpectatorSearchText = searchBox.Text
-        updateSpectatorList(SpectatorSearchText)
-    end)
-    
-    local clearBtn = Instance.new("TextButton")
-    clearBtn.Parent = searchFrame
-    clearBtn.Size = UDim2.new(0, 30, 0, 30)
-    clearBtn.Position = UDim2.new(1, -35, 0.5, -15)
-    clearBtn.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
-    clearBtn.BackgroundTransparency = 0.2
-    clearBtn.Text = "✕"
-    clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearBtn.TextSize = 16
-    clearBtn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(1, 0)
-    clearBtn.MouseButton1Click:Connect(function() searchBox.Text = ""; SpectatorSearchText = ""; updateSpectatorList("") end)
-    
-    local listContainer = Instance.new("ScrollingFrame")
-    listContainer.Parent = mainFrame
-    listContainer.Size = UDim2.new(1, -20, 0, 250)
-    listContainer.Position = UDim2.new(0, 10, 0, 85)
-    listContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    listContainer.BackgroundTransparency = 0.3
-    listContainer.BorderSizePixel = 0
-    listContainer.ScrollBarThickness = 6
-    listContainer.ScrollBarImageColor3 = currentColor
-    listContainer.ScrollingDirection = Enum.ScrollingDirection.Y
-    Instance.new("UICorner", listContainer).CornerRadius = UDim.new(0, 8)
-    
-    SpectatorContainer = listContainer
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Parent = listContainer
-    listLayout.Padding = UDim.new(0, 5)
-    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
-    end)
-    
-    local playerAddedConn = Players.PlayerAdded:Connect(function() updateSpectatorList(SpectatorSearchText) end)
-    local playerRemovingConn = Players.PlayerRemoving:Connect(function() 
-        if spectatorTarget == playerRemovingConn then stopSpectator() end
-        updateSpectatorList(SpectatorSearchText) 
-    end)
-    table.insert(espConnections, playerAddedConn)
-    table.insert(espConnections, playerRemovingConn)
-    
-    updateSpectatorList("")
 end
 
 -- ==================== TELEPORT TAB ====================
@@ -4198,7 +3846,6 @@ bangBtn.MouseButton1Click:Connect(function() activeTab = "BANG"; loadBang() end)
 calcBtn.MouseButton1Click:Connect(function() activeTab = "CALC"; loadCalculator() end)
 colorBtn.MouseButton1Click:Connect(function() activeTab = "COLOR"; loadColor() end)
 adminsBtn.MouseButton1Click:Connect(function() activeTab = "ADMINS"; loadAdmins() end)
-spectatorBtn.MouseButton1Click:Connect(function() activeTab = "ESPECTADOR"; loadSpectator() end)
 
 -- ==================== MINIMIZAR/RESTAURAR ====================
 minBtn.MouseButton1Click:Connect(function()
@@ -4240,7 +3887,7 @@ rainbowConnection = RunService.RenderStepped:Connect(function()
         ballStroke.Color = currentColor
         contentFrame.ScrollBarImageColor3 = currentColor
         
-        -- Atualizar cores das ESPs
+        -- Atualiza cores das ESPs
         if espBoxEnabled then
             for plr, box in pairs(EspObjects.boxes) do
                 if box then box.Color3 = currentColor end
@@ -4293,8 +3940,7 @@ rainbowConnection = RunService.RenderStepped:Connect(function()
         elseif activeTab == "BANG" then bangBtn.BackgroundColor3 = currentColor
         elseif activeTab == "CALC" then calcBtn.BackgroundColor3 = currentColor
         elseif activeTab == "COLOR" then colorBtn.BackgroundColor3 = currentColor
-        elseif activeTab == "ADMINS" then adminsBtn.BackgroundColor3 = currentColor
-        elseif activeTab == "ESPECTADOR" then spectatorBtn.BackgroundColor3 = currentColor end
+        elseif activeTab == "ADMINS" then adminsBtn.BackgroundColor3 = currentColor end
     end
 end)
 
