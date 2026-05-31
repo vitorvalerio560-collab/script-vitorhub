@@ -48,6 +48,7 @@ local UIState = {
     bVal = 255,
     IgnoreList = {},
     TelekillIgnoreList = {},
+    AimbotIgnoreList = {},  -- NOVA LISTA PARA AIMBOT IGNORE
     sessionStart = os.time(),
 }
 
@@ -141,6 +142,31 @@ end
 
 local function IsTelekillIgnored(userId)
     for _, id in pairs(UIState.TelekillIgnoreList) do
+        if id == userId then return true end
+    end
+    return false
+end
+
+-- ==================== NOVAS FUNÇÕES AIMBOT IGNORE ====================
+local function AddAimbotIgnore(userId)
+    if not userId then return end
+    for _, id in pairs(UIState.AimbotIgnoreList) do
+        if id == userId then return end
+    end
+    table.insert(UIState.AimbotIgnoreList, userId)
+end
+
+local function RemoveAimbotIgnore(userId)
+    for i, id in pairs(UIState.AimbotIgnoreList) do
+        if id == userId then
+            table.remove(UIState.AimbotIgnoreList, i)
+            break
+        end
+    end
+end
+
+local function IsAimbotIgnored(userId)
+    for _, id in pairs(UIState.AimbotIgnoreList) do
         if id == userId then return true end
     end
     return false
@@ -881,7 +907,7 @@ local rainbowActive = UIState.rainbowActive
 local rainbowConnection = nil
 local rVal, gVal, bVal = UIState.rVal, UIState.gVal, UIState.bVal
 
--- ==================== AIMBOT (CORRIGIDO) ====================
+-- ==================== AIMBOT (CORRIGIDO COM IGNORE) ====================
 local aimbotEnabled = UIState.aimbotEnabled
 local aimbotConnection = nil
 
@@ -897,7 +923,7 @@ local function getClosestVisiblePlayer()
     local closestDistance = math.huge
     
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and not IsIgnored(plr.UserId) and plr.Character and plr.Character:FindFirstChild("Head") then
+        if plr ~= player and not IsIgnored(plr.UserId) and not IsAimbotIgnored(plr.UserId) and plr.Character and plr.Character:FindFirstChild("Head") then
             local humanoid = plr.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
                 local head = plr.Character.Head
@@ -1658,6 +1684,7 @@ local gamesBtn = createTabButton("Games")
 local visualBtn = createTabButton("Visual")
 local telekillIgnoreBtn = createTabButton("Tk Ignore")
 local aimbotBtn = createTabButton("Aimbot")
+local aimIgnoreBtn = createTabButton("Aim Ignore")  -- NOVA ABA
 local serverBtn = createTabButton("Server")
 local teleportBtn = createTabButton("Teleport")
 local bringBtn = createTabButton("Bring")
@@ -3596,6 +3623,251 @@ local function loadAimbot()
     createButton(togglesFrame, "🎯 ESP Menu (Box + Tracer)", executeEspMenu)
 end
 
+-- ==================== NOVA ABA: AIM IGNORE ====================
+local AimIgnoreSearchText = ""
+local AimIgnoreContainer = nil
+
+local function updateAimIgnoreList(searchTerm)
+    searchTerm = searchTerm or AimIgnoreSearchText
+    searchTerm = searchTerm:lower()
+    
+    if AimIgnoreContainer then
+        for _, v in pairs(AimIgnoreContainer:GetChildren()) do
+            if v:IsA("Frame") then v:Destroy() end
+        end
+    end
+    
+    updatePlayerCache()
+    local playerList = PlayerCache.list
+    
+    if searchTerm ~= "" then
+        local filtered = {}
+        for _, plr in pairs(playerList) do
+            if plr.Name:lower():find(searchTerm) or (plr.DisplayName and plr.DisplayName:lower():find(searchTerm)) then
+                table.insert(filtered, plr)
+            end
+        end
+        playerList = filtered
+    end
+    
+    for _, plr in pairs(playerList) do
+        local isIgnored = IsAimbotIgnored(plr.UserId)
+        
+        local rowFrame = Instance.new("Frame")
+        rowFrame.Parent = AimIgnoreContainer
+        rowFrame.Size = UDim2.new(1, -10, 0, 70)
+        rowFrame.BackgroundColor3 = isIgnored and Color3.fromRGB(50, 30, 30) or Color3.fromRGB(35, 35, 48)
+        rowFrame.BackgroundTransparency = 0.2
+        Instance.new("UICorner", rowFrame).CornerRadius = UDim.new(0, 10)
+        
+        -- Avatar
+        local avatarFrame = Instance.new("Frame")
+        avatarFrame.Parent = rowFrame
+        avatarFrame.Size = UDim2.new(0, 55, 0, 55)
+        avatarFrame.Position = UDim2.new(0, 8, 0.5, -27.5)
+        avatarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        avatarFrame.BackgroundTransparency = 0.9
+        Instance.new("UICorner", avatarFrame).CornerRadius = UDim.new(1, 0)
+        
+        local avatarImg = Instance.new("ImageLabel")
+        avatarImg.Parent = avatarFrame
+        avatarImg.Size = UDim2.new(1, -4, 1, -4)
+        avatarImg.Position = UDim2.new(0, 2, 0, 2)
+        avatarImg.BackgroundTransparency = 1
+        avatarImg.Image = getPlayerThumbnail(plr.UserId)
+        Instance.new("UICorner", avatarImg).CornerRadius = UDim.new(1, 0)
+        
+        -- Nome do jogador
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Parent = rowFrame
+        nameLabel.Size = UDim2.new(0, 200, 0, 30)
+        nameLabel.Position = UDim2.new(0, 75, 0.25, -15)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = plr.Name
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.TextSize = 16
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        -- Status de ignorado
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Parent = rowFrame
+        statusLabel.Size = UDim2.new(0, 100, 0, 25)
+        statusLabel.Position = UDim2.new(0, 75, 0.65, -12.5)
+        statusLabel.BackgroundColor3 = isIgnored and Color3.fromRGB(200, 50, 50) or Color3.fromRGB(50, 200, 50)
+        statusLabel.BackgroundTransparency = 0.3
+        statusLabel.Text = isIgnored and "IGNORED" or "TARGET"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        statusLabel.TextSize = 11
+        statusLabel.Font = Enum.Font.GothamBold
+        Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 5)
+        
+        -- Botão Select / No Select
+        local actionBtn = Instance.new("TextButton")
+        actionBtn.Parent = rowFrame
+        actionBtn.Size = UDim2.new(0, 110, 0, 40)
+        actionBtn.Position = UDim2.new(1, -120, 0.5, -20)
+        actionBtn.BackgroundColor3 = isIgnored and Color3.fromRGB(100, 100, 100) or Color3.fromRGB(0, 150, 255)
+        actionBtn.BackgroundTransparency = 0.2
+        actionBtn.Text = isIgnored and "No Select" or "Select Player"
+        actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        actionBtn.TextSize = 12
+        actionBtn.Font = Enum.Font.GothamBold
+        Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(0, 8)
+        
+        actionBtn.MouseButton1Click:Connect(function()
+            if IsAimbotIgnored(plr.UserId) then
+                RemoveAimbotIgnore(plr.UserId)
+                StarterGui:SetCore("SendNotification", { 
+                    Title = "Aim Ignore", 
+                    Text = "❌ " .. plr.Name .. " removido da lista. Aimbot mirará nele novamente.", 
+                    Duration = 2 
+                })
+            else
+                AddAimbotIgnore(plr.UserId)
+                StarterGui:SetCore("SendNotification", { 
+                    Title = "Aim Ignore", 
+                    Text = "✅ " .. plr.Name .. " adicionado à lista. Aimbot não mirará nele.", 
+                    Duration = 2 
+                })
+            end
+            updateAimIgnoreList(AimIgnoreSearchText)
+        end)
+    end
+    
+    if AimIgnoreContainer then
+        AimIgnoreContainer.CanvasSize = UDim2.new(0, 0, 0, math.max(170, #playerList * 80))
+    end
+end
+
+local function loadAimIgnore()
+    clearContent()
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Parent = contentFrame
+    mainFrame.Size = UDim2.new(1, 0, 1, 0)
+    mainFrame.BackgroundTransparency = 1
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Parent = mainFrame
+    titleLabel.Size = UDim2.new(1, 0, 0, 35)
+    titleLabel.Position = UDim2.new(0, 0, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Aim Ignore List"
+    titleLabel.TextColor3 = currentColor
+    titleLabel.TextSize = 18
+    titleLabel.Font = Enum.Font.GothamBold
+    
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Parent = mainFrame
+    descLabel.Size = UDim2.new(1, 0, 0, 20)
+    descLabel.Position = UDim2.new(0, 0, 0, 35)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = "Selecione players para o Aimbot IGNORAR"
+    descLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    descLabel.TextSize = 12
+    descLabel.Font = Enum.Font.Gotham
+    
+    -- Search bar
+    local searchFrame = Instance.new("Frame")
+    searchFrame.Parent = mainFrame
+    searchFrame.Size = UDim2.new(1, -20, 0, 40)
+    searchFrame.Position = UDim2.new(0, 10, 0, 60)
+    searchFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    searchFrame.BackgroundTransparency = 0.2
+    Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
+    
+    local searchBox = Instance.new("TextBox")
+    searchBox.Parent = searchFrame
+    searchBox.Size = UDim2.new(1, -50, 1, -10)
+    searchBox.Position = UDim2.new(0, 10, 0, 5)
+    searchBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    searchBox.BackgroundTransparency = 0.3
+    searchBox.PlaceholderText = "Search players..."
+    searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    searchBox.Text = AimIgnoreSearchText
+    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    searchBox.TextSize = 14
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.ClearTextOnFocus = false
+    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
+    
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        AimIgnoreSearchText = searchBox.Text
+        updateAimIgnoreList(AimIgnoreSearchText)
+    end)
+    
+    local clearBtn = Instance.new("TextButton")
+    clearBtn.Parent = searchFrame
+    clearBtn.Size = UDim2.new(0, 30, 0, 30)
+    clearBtn.Position = UDim2.new(1, -35, 0.5, -15)
+    clearBtn.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+    clearBtn.BackgroundTransparency = 0.2
+    clearBtn.Text = "✕"
+    clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clearBtn.TextSize = 16
+    clearBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(1, 0)
+    clearBtn.MouseButton1Click:Connect(function() 
+        searchBox.Text = "" 
+        AimIgnoreSearchText = "" 
+        updateAimIgnoreList("") 
+    end)
+    
+    -- Lista de players
+    local listContainer = Instance.new("ScrollingFrame")
+    listContainer.Parent = mainFrame
+    listContainer.Size = UDim2.new(1, -20, 0, 230)
+    listContainer.Position = UDim2.new(0, 10, 0, 110)
+    listContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    listContainer.BackgroundTransparency = 0.3
+    listContainer.BorderSizePixel = 0
+    listContainer.ScrollBarThickness = 6
+    listContainer.ScrollBarImageColor3 = currentColor
+    listContainer.ScrollingDirection = Enum.ScrollingDirection.Y
+    Instance.new("UICorner", listContainer).CornerRadius = UDim.new(0, 10)
+    
+    AimIgnoreContainer = listContainer
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = listContainer
+    listLayout.Padding = UDim.new(0, 8)
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+    end)
+    
+    -- Botão para limpar toda a lista de ignore
+    local clearAllBtn = Instance.new("TextButton")
+    clearAllBtn.Parent = mainFrame
+    clearAllBtn.Size = UDim2.new(1, -20, 0, 40)
+    clearAllBtn.Position = UDim2.new(0, 10, 0, 350)
+    clearAllBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    clearAllBtn.BackgroundTransparency = 0.2
+    clearAllBtn.Text = "Clear All Ignored"
+    clearAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clearAllBtn.TextSize = 14
+    clearAllBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", clearAllBtn).CornerRadius = UDim.new(0, 8)
+    
+    clearAllBtn.MouseButton1Click:Connect(function()
+        UIState.AimbotIgnoreList = {}
+        updateAimIgnoreList(AimIgnoreSearchText)
+        StarterGui:SetCore("SendNotification", { 
+            Title = "Aim Ignore", 
+            Text = "🗑️ Todos os players foram removidos da lista de ignore!", 
+            Duration = 2 
+        })
+    end)
+    
+    local playerAddedConn = Players.PlayerAdded:Connect(function() updateAimIgnoreList(AimIgnoreSearchText) end)
+    local playerRemovingConn = Players.PlayerRemoving:Connect(function() updateAimIgnoreList(AimIgnoreSearchText) end)
+    table.insert(espConnections, playerAddedConn)
+    table.insert(espConnections, playerRemovingConn)
+    
+    updateAimIgnoreList("")
+end
+
 -- ==================== TELEPORT TAB ====================
 local TeleportSearchText = ""
 local TeleportContainer = nil
@@ -4455,6 +4727,7 @@ gamesBtn.MouseButton1Click:Connect(function() activeTab = "GAMES"; loadGames() e
 visualBtn.MouseButton1Click:Connect(function() activeTab = "VISUAL"; loadVisual() end)
 telekillIgnoreBtn.MouseButton1Click:Connect(function() activeTab = "TK IGNORE"; loadTelekillIgnore() end)
 aimbotBtn.MouseButton1Click:Connect(function() activeTab = "AIMBOT"; loadAimbot() end)
+aimIgnoreBtn.MouseButton1Click:Connect(function() activeTab = "AIM IGNORE"; loadAimIgnore() end)
 serverBtn.MouseButton1Click:Connect(function() activeTab = "SERVER"; loadServer() end)
 teleportBtn.MouseButton1Click:Connect(function() activeTab = "TELEPORT"; loadTeleport() end)
 bringBtn.MouseButton1Click:Connect(function() activeTab = "BRING"; loadBring() end)
@@ -4511,6 +4784,7 @@ rainbowConnection = RunService.RenderStepped:Connect(function()
         elseif activeTab == "VISUAL" then visualBtn.BackgroundColor3 = currentColor
         elseif activeTab == "TK IGNORE" then telekillIgnoreBtn.BackgroundColor3 = currentColor
         elseif activeTab == "AIMBOT" then aimbotBtn.BackgroundColor3 = currentColor
+        elseif activeTab == "AIM IGNORE" then aimIgnoreBtn.BackgroundColor3 = currentColor
         elseif activeTab == "SERVER" then serverBtn.BackgroundColor3 = currentColor
         elseif activeTab == "TELEPORT" then teleportBtn.BackgroundColor3 = currentColor
         elseif activeTab == "BRING" then bringBtn.BackgroundColor3 = currentColor
